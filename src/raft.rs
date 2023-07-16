@@ -1,8 +1,14 @@
+use tracing::{span, Level, Span};
+use tracing::Instrument;
+use slog::Logger;
+
+use crate::error::Result;
+use crate::config::Config;
+
+
 /// contain raft core component
 pub struct RaftCore {
-    /// id of this node
     id: u64,
-
     /// current election term
     pub term: u64,
 
@@ -20,8 +26,21 @@ pub struct RaftCore {
     /// election timeout must be greater than
     /// HeartbeatTick. We suggest election_timeout = 10 * heartbeat_timeout to avoid
     /// unnecessary leader switching
-    pub election_timeout: usize,
+    election_timeout: usize,
+    heartbeat_timeout: usize,
 
+    /// Randomize election timeout
+    /// will in range [min_election_timeout, max_election_timeout]
+    randomized_election_timeout: usize,
+    min_election_timeout: usize,
+    max_election_timeout: usize,
+}
+
+
+impl Default for RaftCore {
+    fn default() -> Self {
+        
+    }
 }
 
 pub enum StateRole {
@@ -44,4 +63,28 @@ type Message = String;
 pub struct Raft {
     core: RaftCore,
     msg: Vec<Message>
+}
+
+impl Raft {
+    //pub fn new(log: Span) -> Result<Self> {
+    pub fn new(conf: &Config, logger: Logger) {
+        let span = span!(Level::TRACE, "node 1");
+        let id = conf.id;
+
+        let r = Raft{
+            core: RaftCore { 
+                id,
+                term: Default::default(),
+                vote: Default::default(),
+                state: StateRole::default(),
+                leader_id: Default::default(),
+                election_timeout: conf.election_tick,
+                heartbeat_timeout: conf.hearbeat_tick,
+                randomized_election_timeout: Default::default(),
+                min_election_timeout: conf.min_election_tick,
+                max_election_timeout: conf.max_election_tick
+            },
+            msg: Default::default(),
+        };
+    }
 }
