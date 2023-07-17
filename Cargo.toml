@@ -7,7 +7,11 @@ edition = "2021"
 
 [dependencies]
 slog = "2.7.0"
-slog_term = "2.9.0"
-slog_term = "2.9.0"
-slog_async = "2.7.0"
+slog-term = "2.9.0"
+slog-async = "2.7.0"
 anyhow = "1.0.72"
+bytes = "0.4"
+prost = "0.5"
+
+[build-dependencies]
+prost-build = "0.11"

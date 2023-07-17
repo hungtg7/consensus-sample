@@ -1,9 +1,11 @@
+use slog::{Drain, o};
+
 mod node;
 mod raft;
-mod error;
 mod config;
 
 use node::Node;
+use crate::raft::Raft;
 
 fn main() {
     let decorator = slog_term::TermDecorator::new().build();
@@ -13,12 +15,12 @@ fn main() {
 
     let conf = config::Config{
         id: 1,
-        hearbeat_tick: 15,
+        heartbeat_tick: 15,
         election_tick: 5,
         min_election_tick: 0,
         max_election_tick: 10,
     };
-    let raft = Raft::new(conf, logger);
-    let node = Node{raft};
+    let raft = Raft::new(&conf, logger);
+    let node = Node{raft: raft.unwrap()};
     println!("Hello, world!");
 }

@@ -1,8 +1,6 @@
-use tracing::{span, Level, Span};
-use tracing::Instrument;
 use slog::Logger;
+use anyhow::Result;
 
-use crate::error::Result;
 use crate::config::Config;
 
 
@@ -37,12 +35,6 @@ pub struct RaftCore {
 }
 
 
-impl Default for RaftCore {
-    fn default() -> Self {
-        
-    }
-}
-
 pub enum StateRole {
     Follower,
     Candidate,
@@ -67,11 +59,10 @@ pub struct Raft {
 
 impl Raft {
     //pub fn new(log: Span) -> Result<Self> {
-    pub fn new(conf: &Config, logger: Logger) {
-        let span = span!(Level::TRACE, "node 1");
+    pub fn new(conf: &Config, logger: Logger) -> Result<Self> {
         let id = conf.id;
 
-        let r = Raft{
+        Ok(Raft{
             core: RaftCore { 
                 id,
                 term: Default::default(),
@@ -79,12 +70,13 @@ impl Raft {
                 state: StateRole::default(),
                 leader_id: Default::default(),
                 election_timeout: conf.election_tick,
-                heartbeat_timeout: conf.hearbeat_tick,
+                heartbeat_timeout: conf.heartbeat_tick,
                 randomized_election_timeout: Default::default(),
                 min_election_timeout: conf.min_election_tick,
                 max_election_timeout: conf.max_election_tick
             },
             msg: Default::default(),
-        };
+        })
+
     }
 }
