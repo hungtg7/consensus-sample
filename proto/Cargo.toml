@@ -1,0 +1,14 @@
+[package]
+name = "raftpb"
+version = "0.1.0"
+authors = ["Hung Tran"]
+description = "Example project using prost-build"
+edition = "2018"
+
+[dependencies]
+bytes = "0.4"
+prost = "0.11"
+protobuf = "2"
+
+[build-dependencies]
+prost-build = "0.5"

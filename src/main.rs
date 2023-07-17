@@ -6,6 +6,7 @@ mod config;
 
 use node::Node;
 use crate::raft::Raft;
+use raftpb::proto::Message;
 
 fn main() {
     let decorator = slog_term::TermDecorator::new().build();
