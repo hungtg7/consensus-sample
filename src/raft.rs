@@ -102,6 +102,8 @@ impl Raft {
 
     pub fn reset_term(&mut self, term: u64) {}
 
+    pub fn randomized_election_timeout(&mut self) {}
+
     pub fn become_follower(&mut self, term: u64) {
         self.reset_term(term);
         self.state = StateRole::Follower;
