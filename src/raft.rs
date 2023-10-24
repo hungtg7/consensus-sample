@@ -1,5 +1,6 @@
-use slog::Logger;
+use slog::{info, Logger};
 use anyhow::Result;
+use std::ops::{Deref, DerefMut};
 
 use crate::config::Config;
 
@@ -32,6 +33,7 @@ pub struct RaftCore {
     randomized_election_timeout: usize,
     min_election_timeout: usize,
     max_election_timeout: usize,
+    logger: Logger
 }
 
 
@@ -53,18 +55,34 @@ type Message = String;
 
 
 pub struct Raft {
-    core: RaftCore,
+    pub r: RaftCore,
     msg: Vec<Message>
+}
+
+// allows you to use the dot operator (.) directly on your custom type to access the fields of the contained type.
+impl Deref for Raft {
+    type Target = RaftCore;
+
+    fn deref(&self) -> &Self::Target {
+        &self.r
+    }
+}
+
+// DerefMut allow Raft to modify nested Deref RaftCore
+impl DerefMut for Raft {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.r
+    }
 }
 
 impl Raft {
     //pub fn new(log: Span) -> Result<Self> {
-    pub fn new(conf: &Config, logger: Logger) -> Result<Self> {
-        let id = conf.id;
+    pub fn new(conf: &Config, logger: &Logger) -> Result<Self> {
+        conf.validate()?;
 
-        Ok(Raft{
-            core: RaftCore { 
-                id,
+        let mut r = Raft{
+            r: RaftCore { 
+                id: conf.id,
                 term: Default::default(),
                 vote: Default::default(),
                 state: StateRole::default(),
@@ -73,10 +91,24 @@ impl Raft {
                 heartbeat_timeout: conf.heartbeat_tick,
                 randomized_election_timeout: Default::default(),
                 min_election_timeout: conf.min_election_tick,
-                max_election_timeout: conf.max_election_tick
+                max_election_timeout: conf.max_election_tick,
+                logger: logger.clone(),
             },
             msg: Default::default(),
-        })
+        };
+        r.become_follower(r.term);
+        Ok(r)
+    }
 
+    pub fn reset_term(&mut self, term: u64) {}
+
+    pub fn become_follower(&mut self, term: u64) {
+        self.reset_term(term);
+        self.state = StateRole::Follower;
+        info!(
+            self.logger,
+            "became follower at term {term}",
+            term = self.term;
+        );
     }
 }
