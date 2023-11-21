@@ -12,6 +12,7 @@ slog-async = "2.7.0"
 anyhow = "1.0.72"
 bytes = "0.4"
 prost = "0.5"
+rand = "0.8"
 raftpb = { path = "proto", version = "0.1.0" }
 
 [build-dependencies]

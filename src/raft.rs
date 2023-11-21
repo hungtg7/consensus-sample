@@ -1,8 +1,12 @@
-use slog::{info, Logger};
+use slog::{info, debug, Logger};
 use anyhow::Result;
 use std::ops::{Deref, DerefMut};
+use rand::{self, Rng};
 
 use crate::config::Config;
+
+/// A constant represents invalid id of raft.
+pub const INVALID_ID: u64 = 0;
 
 
 /// contain raft core component
@@ -100,9 +104,28 @@ impl Raft {
         Ok(r)
     }
 
-    pub fn reset_term(&mut self, term: u64) {}
+    pub fn reset_term(&mut self, term: u64) {        
+        if self.term != term {
+            self.term = term;
+            self.vote = INVALID_ID;
+        }
+        self.leader_id = INVALID_ID;
+        self.randomized_election_timeout()
+}
 
-    pub fn randomized_election_timeout(&mut self) {}
+    pub fn randomized_election_timeout(&mut self) {
+        let prev_timeout = self.randomized_election_timeout;
+        let timeout =
+            rand::thread_rng().gen_range(self.min_election_timeout..self.max_election_timeout);
+        debug!(
+            self.logger,
+            "reset election timeout {prev_timeout} -> {timeout}",
+            prev_timeout = prev_timeout,
+            timeout = timeout,
+        );
+        self.randomized_election_timeout = timeout;
+
+    }
 
     pub fn become_follower(&mut self, term: u64) {
         self.reset_term(term);
