@@ -110,7 +110,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytes 0.4.12",
- "prost 0.5.0",
+ "prost 0.12.2",
  "prost-build 0.11.9",
  "raftpb",
  "slog",
@@ -475,6 +475,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a5a410fc7882af66deb8d01d01737353cf3ad6204c408177ba494291a626312"
+dependencies = [
+ "bytes 1.4.0",
+ "prost-derive 0.12.2",
+]
+
+[[package]]
 name = "prost-build"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -541,6 +551,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost-derive"
+version = "0.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "065717a5dfaca4a83d2fe57db3487b311365200000551d7a364e715dbf4346bc"
+dependencies = [
+ "anyhow",
+ "itertools 0.10.5",
+ "proc-macro2 1.0.66",
+ "quote 1.0.31",
+ "syn 2.0.26",
+]
+
+[[package]]
 name = "prost-types"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -588,7 +611,7 @@ name = "raftpb"
 version = "0.1.0"
 dependencies = [
  "bytes 0.4.12",
- "prost 0.11.9",
+ "prost 0.12.2",
  "prost-build 0.5.0",
  "protobuf",
 ]
