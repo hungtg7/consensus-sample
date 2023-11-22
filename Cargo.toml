@@ -10,7 +10,7 @@ slog = "2.7.0"
 slog-term = "2.9.0"
 slog-async = "2.7.0"
 anyhow = "1.0.72"
-bytes = "0.4"
+bytes = "1.5"
 prost = "0.12"
 rand = "0.8"
 raftpb = { path = "proto", version = "0.1.0" }
