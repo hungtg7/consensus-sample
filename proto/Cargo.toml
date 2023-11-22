@@ -6,7 +6,7 @@ description = "Example project using prost-build"
 edition = "2018"
 
 [dependencies]
-bytes = "0.4"
+bytes = "0.6"
 prost = "0.12"
 protobuf = "3"
 
