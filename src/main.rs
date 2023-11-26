@@ -38,8 +38,7 @@ fn main() {
         min_election_tick: 25,
         max_election_tick: 30,
     };
-    let raft = Raft::new(&conf, &logger);
-    let node = Node{raft: raft.unwrap()};
+    let node = Node::new(&conf, &logger);
     // let (sender, receiver) = mpsc::channel();
     println!("Hello, world!");
     // send_propose(logger.clone(), sender);

@@ -11,7 +11,7 @@ pub const INVALID_ID: u64 = 0;
 
 /// contain raft core component
 pub struct RaftCore {
-    id: u64,
+    pub id: u64,
     /// current election term
     pub term: u64,
 
@@ -37,7 +37,7 @@ pub struct RaftCore {
     randomized_election_timeout: usize,
     min_election_timeout: usize,
     max_election_timeout: usize,
-    logger: Logger
+    pub logger: Logger
 }
 
 
@@ -101,6 +101,11 @@ impl Raft {
             msg: Default::default(),
         };
         r.become_follower(r.term);
+        info!(
+            r.logger,
+            "newRaft";
+            "term" => r.term,
+        );
         Ok(r)
     }
 
