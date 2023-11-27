@@ -11,4 +11,4 @@ prost = "0.12"
 protobuf = "3"
 
 [build-dependencies]
-prost-build = "0.5"
+prost-build = "0.12"
