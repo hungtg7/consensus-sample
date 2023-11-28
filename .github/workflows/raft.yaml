@@ -7,5 +7,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
-      - run: cargo build 
+      - run: apt install -y protobuf-compiler && cargo build 
   # TODO: add clippy
