@@ -41,6 +41,7 @@ pub struct RaftCore {
 }
 
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum StateRole {
     Follower,
     Candidate,
@@ -138,6 +139,20 @@ impl Raft {
         info!(
             self.logger,
             "became follower at term {term}",
+            term = self.term;
+        );
+    }
+
+    pub fn become_candidate(&mut self) {
+        assert_ne!(self.state, StateRole::Leader, "Can not transitted Leader -> Candidate");
+        let term = self.term + 1;
+        self.reset_term(term);
+        let id = self.id;
+        self.vote = id;
+        self.state = StateRole::Candidate;
+        info!(
+            self.logger,
+            "became candidate at term {term}",
             term = self.term;
         );
     }
