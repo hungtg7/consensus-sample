@@ -156,4 +156,7 @@ impl Raft {
             term = self.term;
         );
     }
+
+    // TODO: add step todo
+    pub fn step(&mut self) {}
 }

@@ -2,6 +2,7 @@ use slog::{Drain, Logger, o, info};
 use std::time::{Duration, Instant};
 use std::thread;
 use std::sync::mpsc::{self, RecvTimeoutError};
+use std::collections::HashMap;
 
 mod node;
 mod raft;
@@ -39,9 +40,8 @@ fn main() {
         max_election_tick: 30,
     };
     let node = Node::new(&conf, &logger);
-    // let (sender, receiver) = mpsc::channel();
+
     println!("Hello, world!");
-    // send_propose(logger.clone(), sender);
 }
 
 fn send_propose(logger: Logger, sender: mpsc::Sender<Msg>) {
