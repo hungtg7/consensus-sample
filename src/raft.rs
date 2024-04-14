@@ -4,6 +4,7 @@ use std::ops::{Deref, DerefMut};
 use rand::{self, Rng};
 
 use crate::config::Config;
+use raftpb::proto::{ Message, MessageType };
 
 /// A constant represents invalid id of raft.
 pub const INVALID_ID: u64 = 0;
@@ -54,9 +55,6 @@ impl Default for StateRole {
         Self::Follower
     }
 }
-
-// TODO: make it a RPC message
-type Message = String;
 
 
 pub struct Raft {
@@ -157,6 +155,48 @@ impl Raft {
         );
     }
 
-    // TODO: add step todo
-    pub fn step(&mut self) {}
+    /// This function incharge of steps up or down of Raft node.
+    /// Always call this steps when receive a message.
+    pub fn step(&mut self, msg: Message) {
+        // Handle message term
+        if msg.term == 0 {
+            // Local message
+        } else if msg.term > self.term {
+            // TODO: continue on this
+            if msg.msg_type == MessageType::MsgRequestVote as i32
+                || msg.msg_type == MessageType::MsgRequestPreVote as i32
+            {
+                // let force = m.context == CAMPAIGN_TRANSFER;
+                // let in_lease = self.leader_id != INVALID_ID
+                //     && self.election_elapsed < self.election_timeout;
+                // if !force && in_lease {
+                //     // if a server receives RequestVote request within the minimum election
+                //     // timeout of hearing from a current leader, it does not update its term
+                //     // or grant its vote
+                //     //
+                //     // This is included in the 3rd concern for Joint Consensus, where if another
+                //     // peer is removed from the cluster it may try to hold elections and disrupt
+                //     // stability.
+                //     info!(
+                //         self.logger,
+                //         "[logterm: {log_term}, index: {log_index}, vote: {vote}] ignored vote from \
+                //          {from} [logterm: {msg_term}, index: {msg_index}]: lease is not expired",
+                //         log_term = self.raft_log.last_term(),
+                //         log_index = self.raft_log.last_index(),
+                //         vote = self.vote,
+                //         from = m.from,
+                //         msg_term = m.log_term,
+                //         msg_index = m.index;
+                //         "term" => self.term,
+                //         "remaining ticks" => self.election_timeout - self.election_elapsed,
+                //         "msg type" => ?m.get_msg_type(),
+                //     );
+                //
+                //     return Ok(());
+                }
+            }
+
+
+        }
+    }
 }
