@@ -1,5 +1,5 @@
 use slog::{info, debug, Logger};
-use anyhow::Result;
+use anyhow::{Result, Ok};
 use std::ops::{Deref, DerefMut};
 use rand::{self, Rng};
 
@@ -38,6 +38,12 @@ pub struct RaftCore {
     randomized_election_timeout: usize,
     min_election_timeout: usize,
     max_election_timeout: usize,
+
+    /// Ticks since it reached last electionTimeout when it is leader or candidate.
+    /// Number of ticks since it reached last electionTimeout or received a
+    /// valid message from current leader when it is a follower.
+    pub election_elapsed: usize,
+
     pub logger: Logger
 }
 
@@ -96,6 +102,7 @@ impl Raft {
                 min_election_timeout: conf.min_election_tick,
                 max_election_timeout: conf.max_election_tick,
                 logger: logger.clone(),
+                election_elapsed: Default::default()
             },
             msg: Default::default(),
         };
@@ -157,46 +164,40 @@ impl Raft {
 
     /// This function incharge of steps up or down of Raft node.
     /// Always call this steps when receive a message.
-    pub fn step(&mut self, msg: Message) {
+    pub fn step(&mut self, msg: Message) -> Result<()> {
         // Handle message term
         if msg.term == 0 {
             // Local message
+            return Ok(());
         } else if msg.term > self.term {
-            // TODO: continue on this
             if msg.msg_type == MessageType::MsgRequestVote as i32
                 || msg.msg_type == MessageType::MsgRequestPreVote as i32
             {
-                // let force = m.context == CAMPAIGN_TRANSFER;
-                // let in_lease = self.leader_id != INVALID_ID
-                //     && self.election_elapsed < self.election_timeout;
-                // if !force && in_lease {
-                //     // if a server receives RequestVote request within the minimum election
-                //     // timeout of hearing from a current leader, it does not update its term
-                //     // or grant its vote
-                //     //
-                //     // This is included in the 3rd concern for Joint Consensus, where if another
-                //     // peer is removed from the cluster it may try to hold elections and disrupt
-                //     // stability.
-                //     info!(
-                //         self.logger,
-                //         "[logterm: {log_term}, index: {log_index}, vote: {vote}] ignored vote from \
-                //          {from} [logterm: {msg_term}, index: {msg_index}]: lease is not expired",
-                //         log_term = self.raft_log.last_term(),
-                //         log_index = self.raft_log.last_index(),
-                //         vote = self.vote,
-                //         from = m.from,
-                //         msg_term = m.log_term,
-                //         msg_index = m.index;
-                //         "term" => self.term,
-                //         "remaining ticks" => self.election_timeout - self.election_elapsed,
-                //         "msg type" => ?m.get_msg_type(),
-                //     );
-                //
-                //     return Ok(());
-                // }
-            }
+                let in_lease = self.leader_id != INVALID_ID
+                    && self.election_elapsed < self.election_timeout;
+                if in_lease {
+                    // if a server receives RequestVote request within the minimum election
+                    // timeout of hearing from a current leader, it does not update its term
+                    // or grant its vote
+                    //
+                    // This is included in the 3rd concern for Joint Consensus, where if another
+                    // peer is removed from the cluster it may try to hold elections and disrupt
+                    // stability.
+                    info!(
+                        self.logger,
+                        "[vote: {vote}] ignored vote from \
+                         [logterm: {msg_term},]: lease is not expired",
+                        vote = self.vote,
+                        msg_term = msg.term;
+                        "term" => self.term,
+                        "remaining ticks" => self.election_timeout - self.election_elapsed,
+                        "msg type" => ?msg.msg_type,
+                    );
 
-
-        }
+                    return Ok(());
+                }
+                else { Ok(())}
+            } else {return Ok(())}
+        } else {return Ok(())}
     }
 }
