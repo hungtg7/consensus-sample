@@ -11,12 +11,12 @@ slog-term = "2.9.1"
 slog-async = "2.8.0"
 anyhow = "1.0.82"
 bytes = "1.6"
-prost = "0.12"
+prost = "0.12.4"
 rand = "0.8"
 raftpb = { path = "proto", version = "0.1.0" }
 
 [build-dependencies]
-prost-build = "0.12"
+prost-build = "0.12.4"
 
 [workspace]
 members = ["proto"]

@@ -7,8 +7,8 @@ edition = "2018"
 
 [dependencies]
 bytes = "1.6"
-prost = "0.12"
+prost = "0.12.4"
 protobuf = "3"
 
 [build-dependencies]
-prost-build = "0.12"
+prost-build = "0.12.4"
