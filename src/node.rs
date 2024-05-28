@@ -1,11 +1,11 @@
-use crate::raft::Raft;
 use crate::config::Config;
-use slog::{info, debug, Logger};
+use crate::raft::Raft;
 use anyhow::Result;
+use slog::{info, Logger};
 
 /// Node server
 pub struct Node {
-    pub raft: Raft
+    pub raft: Raft,
 }
 
 impl Node {
@@ -13,9 +13,7 @@ impl Node {
     /// Create a new RawNode given some [`Config`].
     pub fn new(config: &Config, logger: &Logger) -> Result<Self> {
         let r = Raft::new(config, logger)?;
-        let mut rn = Node {
-            raft: r,
-        };
+        let rn = Node { raft: r };
         info!(
             rn.raft.logger,
             "RawNode created with id {id}.",

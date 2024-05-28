@@ -1,15 +1,14 @@
-use slog::{Drain, Logger, o, info};
-use std::time::{Duration, Instant};
+use slog::{info, o, Drain, Logger};
+use std::sync::mpsc::{self};
 use std::thread;
-use std::sync::mpsc::{self, RecvTimeoutError};
-use std::collections::HashMap;
+use std::time::Duration;
 
+mod config;
 mod node;
 mod raft;
-mod config;
 
 use node::Node;
-use crate::raft::Raft;
+
 use raftpb::proto::Message;
 
 type ProposeCallback = Box<dyn Fn() + Send>;
@@ -32,14 +31,14 @@ fn main() {
     let drain = slog_async::Async::new(drain).build().fuse();
     let logger = slog::Logger::root(drain, o!());
 
-    let conf = config::Config{
+    let conf = config::Config {
         id: 1,
         heartbeat_tick: 15,
         election_tick: 20,
         min_election_tick: 25,
         max_election_tick: 30,
     };
-    let node = Node::new(&conf, &logger);
+    let _node = Node::new(&conf, &logger);
 
     println!("Hello, world!");
 }
@@ -70,3 +69,4 @@ fn send_propose(logger: Logger, sender: mpsc::Sender<Msg>) {
         info!(logger, "receive the propose callback");
     });
 }
+

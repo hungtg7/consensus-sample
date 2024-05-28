@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 /// A constant represents invalid id of raft.
 pub const INVALID_ID: u64 = 0;
 
@@ -27,9 +27,7 @@ impl Config {
         }
 
         if self.heartbeat_tick == 0 {
-            return Err(anyhow!(
-                "heartbeat tick must greater than 0".to_owned(),
-            ));
+            return Err(anyhow!("heartbeat tick must greater than 0".to_owned(),));
         }
 
         if self.election_tick <= self.heartbeat_tick {
