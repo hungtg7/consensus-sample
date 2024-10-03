@@ -69,4 +69,3 @@ fn send_propose(logger: Logger, sender: mpsc::Sender<Msg>) {
         info!(logger, "receive the propose callback");
     });
 }
-
