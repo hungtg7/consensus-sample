@@ -19,6 +19,16 @@ pub const CAMPAIGN_ELECTION: &[u8] = b"CampaignElection";
 #[doc(hidden)]
 pub const CAMPAIGN_TRANSFER: &[u8] = b"CampaignTransfer";
 
+fn new_message(to: u64, field_type: MessageType, from: Option<u64>) -> Message {
+    let mut m = Message::default();
+    m.to = to;
+    if let Some(id) = from {
+        m.from = id;
+    }
+    m.set_msg_type(field_type);
+    m
+}
+
 /// contain raft core component
 pub struct RaftCore {
     pub id: u64,
@@ -41,6 +51,10 @@ pub struct RaftCore {
     /// unnecessary leader switching
     election_timeout: usize,
     heartbeat_timeout: usize,
+
+    /// Whether to check the quorum
+    /// The quorum is True when this node believe the current leader still alive with the majority
+    pub check_quorum: bool,
 
     /// Randomize election timeout
     /// will in range [min_election_timeout, max_election_timeout]
@@ -243,7 +257,32 @@ impl Raft {
                     self.become_follower(msg.term, INVALID_ID);
                 }
             }
-        } else if msg.term < self.term {}
+        } else if msg.term < self.term {
+            if self.check_quorum
+                && msg.msg_type() == MessageType::MsgHeartbeat
+                && msg.msg_type() == MessageType::MsgAppend
+            {
+                // Recevie msg from a leder with a lower term
+                // THere are two posiple cases
+                // 1/ Because of delay in network that make the msg arrive late
+                // 2/ Because of network partition this node is advance increment the term
+                // If check_quorum is True, this node must not increase the term, but sending to
+                // the old leader
+                let to_send = new_message(msg.from, MessageType::MsgAppendResponse, None); // TODO:
+                // how the leader handle this
+                // self.r.send(to_send, &mut self.msg);  # TODO implement send
+            }
+        } else {
+            // ignore other cases
+            info!(
+                self.logger,
+                "ignored a message with lower term from {from}",
+                from = msg.from;
+                "term" => self.term,
+                "msg type" => ?msg.msg_type(),
+                "msg term" => msg.term
+            );
+        }
 
         match msg.msg_type() {
             MessageType::MsgHup => self.hup(false),
