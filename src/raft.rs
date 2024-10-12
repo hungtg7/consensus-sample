@@ -114,7 +114,7 @@ impl Raft {
             },
             msg: Default::default(),
         };
-        r.become_follower(r.term);
+        r.become_follower(r.term, INVALID_ID);
         info!(
             r.logger,
             "newRaft";
@@ -243,7 +243,7 @@ impl Raft {
                     self.become_follower(msg.term, INVALID_ID);
                 }
             }
-        }
+        } else if msg.term < self.term {}
 
         match msg.msg_type() {
             MessageType::MsgHup => self.hup(false),
