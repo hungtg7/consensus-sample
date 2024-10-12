@@ -145,9 +145,10 @@ impl Raft {
         self.randomized_election_timeout = timeout;
     }
 
-    pub fn become_follower(&mut self, term: u64) {
+    pub fn become_follower(&mut self, term: u64, leader_id: u64) {
         self.reset_term(term);
         self.state = StateRole::Follower;
+        self.leader_id = leader_id;
         info!(
             self.logger,
             "became follower at term {term}",
@@ -175,39 +176,74 @@ impl Raft {
 
     /// This function incharge of steps up or down of Raft node.
     /// Always call this steps when receive a message.
+    /// When receve a message there are 3 cases
+    /// 1/ msg.term == 0
     pub fn step(&mut self, msg: Message) -> Result<()> {
         // Handle message term
         if msg.term == 0 {
             // Local message
             return Ok(());
-        } else if msg.term > self.term
-            && (msg.msg_type() == MessageType::MsgRequestVote
-                || msg.msg_type() == MessageType::MsgRequestPreVote)
-        {
-            let in_lease =
-                self.leader_id != INVALID_ID && self.election_elapsed < self.election_timeout;
-            if in_lease {
-                // if a server receives RequestVote request within the minimum election
-                // timeout of hearing from a current leader, it does not update its term
-                // or grant its vote
+        } else if msg.term > self.term {
+            if msg.msg_type() == MessageType::MsgRequestVote
+                || msg.msg_type() == MessageType::MsgRequestPreVote
+            {
+                let force = msg.context == CAMPAIGN_TRANSFER;
+                // a period of time during which it expects the leader to send heartbeats
+                // onyly when
+                // 1/ The node has a valid leader (self.leader_id != INVALID_ID).
+                // 2/ The node is still within the timeout period for hearing from the leader (self.election_elapsed < self.election_timeout).
+                let in_lease =
+                    self.leader_id != INVALID_ID && self.election_elapsed < self.election_timeout;
+                if in_lease & force {
+                    // if a server receives RequestVote request within the minimum election
+                    // timeout of hearing from a current leader, it does not update its term
+                    // or grant its vote
+                    //
+                    // This is included in the 3rd concern for Joint Consensus, where if another
+                    // peer is removed from the cluster it may try to hold elections and disrupt
+                    // stability.
+                    info!(
+                        self.logger,
+                        "[vote: {vote}] ignored vote from \
+                         [logterm: {msg_term},]: lease is not expired",
+                        vote = self.vote,
+                        msg_term = msg.term;
+                        "term" => self.term,
+                        "remaining ticks" => self.election_timeout - self.election_elapsed,
+                        "msg type" => ?msg.msg_type,
+                    );
+
+                    return Ok(());
+                }
+            }
+            if msg.msg_type() == MessageType::MsgRequestPreVote
+                || (msg.msg_type() == MessageType::MsgRequestPreVoteResponse && !msg.reject)
+            {
+                // For a pre-vote request:
+                // Never change our term in response to a pre-vote request.
                 //
-                // This is included in the 3rd concern for Joint Consensus, where if another
-                // peer is removed from the cluster it may try to hold elections and disrupt
-                // stability.
+                // For a pre-vote response with pre-vote granted:
+                // We send pre-vote requests with a term in our future. If the
+                // pre-vote is granted, we will increment our term when we get a
+                // quorum. If it is not, the term comes from the node that
+                // rejected our vote so we should become a follower at the new
+                // term.
+            } else {
                 info!(
                     self.logger,
-                    "[vote: {vote}] ignored vote from \
-                     [logterm: {msg_term},]: lease is not expired",
-                    vote = self.vote,
-                    msg_term = msg.term;
+                    "received a message with higher term from {from}",
+                    from = msg.from;
                     "term" => self.term,
-                    "remaining ticks" => self.election_timeout - self.election_elapsed,
-                    "msg type" => ?msg.msg_type,
+                    "message_term" => msg.term,
+                    "msg type" => ?msg.msg_type(),
                 );
-
-                return Ok(());
+                if msg.msg_type() == MessageType::MsgHeartbeat {
+                    self.become_follower(msg.term, msg.from);
+                } else {
+                    self.become_follower(msg.term, INVALID_ID);
+                }
             }
-        } // TODO: to check msg.term < self.term case
+        }
 
         match msg.msg_type() {
             MessageType::MsgHup => self.hup(false),
@@ -250,6 +286,7 @@ impl Raft {
         Ok(())
     }
     fn step_leader(&mut self, _msg: Message) -> Result<()> {
+        // TODO: implement this
         Ok(())
     }
     fn step_follower(&mut self, _msg: Message) -> Result<()> {
