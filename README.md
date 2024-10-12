@@ -6,7 +6,7 @@ The joint consensus allows individual servers to transition between configuratio
 the configuration change.
 
 ONGOING: step (up or down) while a node receving a message
-TODO: msg.term > self.term
+TODO: msg.term < self.term
 
 reference:
 
