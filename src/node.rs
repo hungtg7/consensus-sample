@@ -21,4 +21,16 @@ impl Node {
         );
         Ok(rn)
     }
+
+    pub fn has_ready(&self) -> bool {
+        let raft = &self.raft;
+        if !raft.msg.is_empty() {
+            return true;
+        }
+        false
+    }
+
+    pub fn tick(&mut self) -> bool {
+        self.raft.tick()
+    }
 }
