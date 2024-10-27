@@ -17,6 +17,10 @@ pub struct Config {
 
     /// max election_tick
     pub max_election_tick: usize,
+
+    /// Specify if the leader should check quorum activity. Leader steps down when
+    /// quorum is not active for an electionTimeout.
+    pub check_quorum: bool,
 }
 
 impl Config {
