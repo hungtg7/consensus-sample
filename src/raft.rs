@@ -87,7 +87,20 @@ impl Default for StateRole {
 
 pub struct Raft {
     pub r: RaftCore,
-    msg: Vec<Message>,
+    pub msg: Vec<Message>,
+}
+
+impl RaftCore {
+    fn send(&mut self, m: Message, msgs: &mut Vec<Message>) {
+        debug!(
+            self.logger,
+            "Sending from {from} to {to}",
+            from = self.id,
+            to = m.to;
+            "msg" => ?m,
+        );
+        msgs.push(m);
+    }
 }
 
 // allows you to use the dot operator (.) directly on your custom type to access the fields of the contained type.
@@ -125,10 +138,16 @@ impl Raft {
                 max_election_timeout: conf.max_election_tick,
                 logger: logger.clone(),
                 election_elapsed: Default::default(),
+                check_quorum: conf.check_quorum,
             },
             msg: Default::default(),
         };
         r.become_follower(r.term, INVALID_ID);
+        info!(
+            r.logger,
+            "newRaft";
+            "term" => r.term,
+        );
         info!(
             r.logger,
             "newRaft";
@@ -196,7 +215,6 @@ impl Raft {
         // Handle message term
         if msg.term == 0 {
             // Local message
-            return Ok(());
         } else if msg.term > self.term {
             if msg.msg_type() == MessageType::MsgRequestVote
                 || msg.msg_type() == MessageType::MsgRequestPreVote
@@ -268,11 +286,14 @@ impl Raft {
                 // 2/ Because of network partition this node is advance increment the term
                 // If check_quorum is True, this node must not increase the term, but sending to
                 // the old leader
-                let to_send = new_message(msg.from, MessageType::MsgAppendResponse, None); // TODO:
+                let to_send = new_message(msg.from, MessageType::MsgAppendResponse, None);
+                // TODO:
                 // how the leader handle this
-                // self.r.send(to_send, &mut self.msg);  # TODO implement send
+                self.r.send(to_send, &mut self.msg);
             }
-        } else {
+        }
+        // TODO: This case is not happend with one node example (else if m.get_msg_type() == MessageType::MsgRequestPreVote)
+        else {
             // ignore other cases
             info!(
                 self.logger,
@@ -282,6 +303,7 @@ impl Raft {
                 "msg type" => ?msg.msg_type(),
                 "msg term" => msg.term
             );
+            return Ok(());
         }
 
         match msg.msg_type() {
@@ -316,9 +338,43 @@ impl Raft {
     }
 
     fn campaign(&mut self, campaign_type: &'static [u8]) {
-        info!(self.logger, "become_candidate");
+        // TODO: campaign to be a leader
         self.become_candidate();
         (MessageType::MsgRequestVote, self.term);
+    }
+
+    pub fn tick(&mut self) -> bool {
+        match self.state {
+            StateRole::Follower | StateRole::PreCandidate | StateRole::Candidate => {
+
+                self.tick_election()
+            }
+            StateRole::Leader => self.tick_heartbeat(),
+        }
+    }
+
+    pub fn tick_election(&mut self) -> bool {
+        self.election_elapsed += 1;
+
+        if !self.pass_election_timeout() {
+            return false;
+        }
+
+        println!("\nstep y'aaaaaa\n");
+        let m = new_message(INVALID_ID, MessageType::MsgHup, Some(self.id));
+        let _ = self.step(m);
+        true
+    }
+
+    // tick_heartbeat is run by leaders to send a MsgBeat after self.heartbeat_timeout.
+    // Returns true to indicate that there will probably be some readiness need to be handled.
+    fn tick_heartbeat(&mut self) -> bool {
+        // TODO
+        true
+    }
+
+    pub fn pass_election_timeout(&self) -> bool {
+        self.election_elapsed >= self.randomized_election_timeout
     }
 
     fn step_candidate(&mut self, _msg: Message) -> Result<()> {
