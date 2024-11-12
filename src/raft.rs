@@ -19,6 +19,14 @@ pub const CAMPAIGN_ELECTION: &[u8] = b"CampaignElection";
 #[doc(hidden)]
 pub const CAMPAIGN_TRANSFER: &[u8] = b"CampaignTransfer";
 
+// Vote result represents the outcome of a vote
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum VoteResult {
+    Won,
+    Pending,
+    Lost,
+}
+
 fn new_message(to: u64, field_type: MessageType, from: Option<u64>) -> Message {
     let mut m = Message::default();
     m.to = to;
@@ -86,6 +94,7 @@ impl Default for StateRole {
 }
 
 pub struct Raft {
+    prs: 
     pub r: RaftCore,
     pub msg: Vec<Message>,
 }
@@ -340,13 +349,14 @@ impl Raft {
     fn campaign(&mut self, campaign_type: &'static [u8]) {
         // TODO: campaign to be a leader
         self.become_candidate();
-        (MessageType::MsgRequestVote, self.term);
+        let (vote_msg, term) = (MessageType::MsgRequestVote, self.term);
+        let self_id = self.id;
+        // TODO: implement poll
     }
 
     pub fn tick(&mut self) -> bool {
         match self.state {
             StateRole::Follower | StateRole::PreCandidate | StateRole::Candidate => {
-
                 self.tick_election()
             }
             StateRole::Leader => self.tick_heartbeat(),
@@ -381,10 +391,12 @@ impl Raft {
         Ok(())
     }
     fn step_leader(&mut self, _msg: Message) -> Result<()> {
-        // TODO: implement this
         Ok(())
     }
     fn step_follower(&mut self, _msg: Message) -> Result<()> {
         Ok(())
     }
+
+    // TODO: implement poll
+    fn poll(&mut self, from: u64, m_t: MessageType, vote: bool) -> VoteResult {}
 }
