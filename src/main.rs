@@ -10,6 +10,9 @@ mod config;
 mod node;
 mod raft;
 mod tracker;
+mod quorum;
+
+use quorum::majority::Configuration as MajorityConfig;
 
 use node::Node;
 

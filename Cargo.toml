@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 slog = "2.7.0"
+fxhash = "0.2.1"
 slog-term = "2.9.1"
 slog-async = "2.8.0"
 anyhow = "1.0.82"

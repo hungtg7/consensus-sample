@@ -3,7 +3,7 @@ use rand::{self, Rng};
 use slog::{debug, info, Logger};
 use std::ops::{Deref, DerefMut};
 
-use crate::config::Config;
+use crate::{config::Config, tracker::ProgressTracker};
 use raftpb::proto::{Message, MessageType};
 
 /// A constant represents invalid id of raft.
@@ -94,7 +94,7 @@ impl Default for StateRole {
 }
 
 pub struct Raft {
-    prs: 
+    prs: ProgressTracker,
     pub r: RaftCore,
     pub msg: Vec<Message>,
 }
@@ -134,6 +134,7 @@ impl Raft {
         conf.validate()?;
 
         let mut r = Raft {
+            prs: Default::default(),
             r: RaftCore {
                 id: conf.id,
                 term: Default::default(),
@@ -398,5 +399,7 @@ impl Raft {
     }
 
     // TODO: implement poll
-    fn poll(&mut self, from: u64, m_t: MessageType, vote: bool) -> VoteResult {}
+    fn poll(&mut self, from: u64, m_t: MessageType, vote: bool) -> VoteResult {
+        VoteResult::Pending
+    }
 }

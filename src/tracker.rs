@@ -18,5 +18,24 @@ pub struct ProgressTracker {
     conf: Configuration,
 }
 
+impl Default for ProgressTracker {
+    fn default() -> Self {
+        let voter = 0;
+        let learner = 0;
+        
+        return ProgressTracker{
+            progress: HashMap::new(),
+            conf: Configuration::new(voter, learner)
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Getters)]
 pub struct Configuration {}
+
+impl Configuration {
+    fn new(voter: u64, learner: u64) -> Configuration {
+        return Configuration{}
+    }
+    
+}
