@@ -23,7 +23,7 @@ impl std::fmt::Display for Configuration {
 
 impl Configuration {
     /// Creates a new configuration using the given IDs.
-    pub fn new(voters: HashSet<u64>) -> Configuration {
-        Configuration { voters }
+    pub fn with_capacity(voters: usize) -> Configuration {
+        Configuration { voters: HashSet::with_capacity(voters) }
     }
 }

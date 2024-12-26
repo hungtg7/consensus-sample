@@ -58,10 +58,10 @@ pub struct Configuration {
 
 impl Configuration {
     /// Creates a new configuration using the given IDs.
-    pub fn new(voters: HashSet<u64>) -> Configuration {
+    pub fn with_capacity(voters: usize) -> Configuration {
         Configuration {
-            incoming: MajorityConfig::new(voters),
-            outgoing: MajorityConfig::new(voters),
+            incoming: MajorityConfig::with_capacity(voters),
+            outgoing: MajorityConfig::default(),
         }
     }
 }

@@ -1,10 +1,10 @@
 mod progress;
 mod state;
 
+use crate::quorum::joint::Configuration as JointConfig;
 use getset::Getters;
 use progress::Progress;
 use std::collections::{HashMap, HashSet};
-use crate::quorum::joint::Configuration as JointConfig;
 
 pub type ProgressMap = HashMap<u64, Progress>;
 /// `ProgressTracker` contains several `Progress`es,
@@ -23,11 +23,11 @@ impl Default for ProgressTracker {
     fn default() -> Self {
         let voter = 0;
         let learner = 0;
-        
-        return ProgressTracker{
-            progress: HashMap::new(),
-            conf: Configuration::new(voter, learner)
-        }
+
+        return ProgressTracker {
+            progress: HashMap::with_capacity(voter + learner),
+            conf: Configuration::with_capacity(voter, learner),
+        };
     }
 }
 
@@ -43,12 +43,14 @@ pub struct Configuration {
     /// simplifies the implementation since it allows peers to have clarity about
     /// its current role without taking into account joint consensus.
     pub learners: HashSet<u64>,
-
 }
 
 impl Configuration {
-    fn new(voter: u64, learner: u64) -> Configuration {
-        return Configuration{}
+    /// Create a new configuration with the given configuration.
+    pub fn with_capacity(voters: usize, learners: usize) -> Self {
+        Self {
+            voters: JointConfig::with_capacity(voters),
+            learners: HashSet::with_capacity(learners)
+        }
     }
-    
 }

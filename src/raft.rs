@@ -353,6 +353,11 @@ impl Raft {
         let (vote_msg, term) = (MessageType::MsgRequestVote, self.term);
         let self_id = self.id;
         // TODO: implement poll
+        if VoteResult::Won == self.poll(self_id, vote_msg, true) {
+            // We won the election after voting for ourselves (which must mean that
+            // this is a single-node cluster).
+            return;
+        }
     }
 
     pub fn tick(&mut self) -> bool {
