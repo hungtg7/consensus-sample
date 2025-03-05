@@ -198,6 +198,13 @@ impl Raft {
             term = self.term;
         );
     }
+    /// Makes this raft the leader.
+    ///
+    /// # Panics
+    ///
+    /// Panics if this is a follower node.
+    pub fn become_leader(&mut self) {
+    }
 
     pub fn become_candidate(&mut self) {
         assert_ne!(
@@ -403,8 +410,25 @@ impl Raft {
         Ok(())
     }
 
-    // TODO: implement poll
     fn poll(&mut self, from: u64, m_t: MessageType, vote: bool) -> VoteResult {
-        VoteResult::Pending
+        self.prs.record_vote(from, vote);
+        let (gr, rj, res) = self.prs.tally_votes();
+        println!("received votes response vote: {:?} from :{:?} rejections: {:?} approvals: {:?} term: {:?}", vote, from, rj, gr, self.term);
+
+        match res {
+            VoteResult::Won => {
+                // TODO: implement conf change confchange::restore(&mut r.prs, r.r.raft_log.last_index(), conf_state)?;
+                // TODO: implement become leader
+                self.become_leader();
+                // TODO: send grpc to all peers
+                // self.bcast_append();
+            }
+            VoteResult::Lost => {
+                let term = self.term;
+                self.become_follower(term, INVALID_ID);
+            }
+            VoteResult::Pending => (),
+        }
+        res
     }
 }

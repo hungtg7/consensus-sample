@@ -1,7 +1,7 @@
 mod progress;
 mod state;
 
-use crate::quorum::joint::Configuration as JointConfig;
+use crate::{quorum::joint::Configuration as JointConfig, raft::VoteResult};
 use getset::Getters;
 use progress::Progress;
 use std::collections::{HashMap, HashSet};
@@ -15,8 +15,8 @@ pub struct ProgressTracker {
 
     /// current configuration state of the node.
     #[get = "pub"]
-    // TODO: implement Configuration
     conf: Configuration,
+    pub votes: HashMap<u64, bool>,
 }
 
 impl Default for ProgressTracker {
@@ -27,8 +27,50 @@ impl Default for ProgressTracker {
         return ProgressTracker {
             progress: HashMap::with_capacity(voter + learner),
             conf: Configuration::with_capacity(voter, learner),
+            votes: HashMap::with_capacity(voter),
+
         };
     }
+}
+
+impl ProgressTracker {
+    /// Records that the node with the given id voted for this Raft
+    /// instance if v == true (and declined it otherwise).
+    pub fn record_vote(&mut self, id: u64, vote: bool) {
+        self.votes.entry(id).or_insert(vote);
+    }
+
+    /// TallyVotes returns the number of granted and rejected Votes, and whether the
+    /// election outcome is known.
+    pub fn tally_votes(&self) -> (usize, usize, VoteResult) {
+        // Make sure to populate granted/rejected correctly even if the Votes slice
+        // contains members no longer part of the configuration. This doesn't really
+        // matter in the way the numbers are used (they're informational), but might
+        // as well get it right.
+        let (mut granted, mut rejected) = (0, 0);
+        for (id, vote) in &self.votes {
+            if !self.conf.voters.contains(*id) {
+                continue;
+            }
+            if *vote {
+                granted += 1;
+            } else {
+                rejected += 1;
+            }
+        }
+        let result = self.vote_result(&self.votes);
+        (granted, rejected, result)
+    }
+    /// Returns the Candidate's eligibility in the current election.
+    ///
+    /// If it is still eligible, it should continue polling nodes and checking.
+    /// Eventually, the election will result in this returning either `Elected`
+    /// or `Ineligible`, meaning the election can be concluded.
+    pub fn vote_result(&self, votes: &HashMap<u64, bool>) -> VoteResult {
+        self.conf.voters.vote_result(|id| votes.get(&id).cloned())
+    }
+
+
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Getters)]

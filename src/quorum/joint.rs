@@ -4,7 +4,7 @@ use std::{
     fmt::{Debug, Display, Formatter},
 };
 
-use crate::MajorityConfig;
+use crate::{raft::VoteResult, MajorityConfig};
 
 /// Index is a Raft log position.
 #[derive(Default, Clone, Copy)]
@@ -64,4 +64,27 @@ impl Configuration {
             outgoing: MajorityConfig::default(),
         }
     }
+    /// Check if an id is a voter.
+    pub fn contains(&self, id: u64) -> bool {
+        self.incoming.voters.contains(&id) || self.outgoing.voters.contains(&id)
+    }
+
+    /// Takes a mapping of voters to yes/no (true/false) votes and returns a result
+    /// indicating whether the vote is pending, lost, or won. A joint quorum requires
+    /// both majority quorums to vote in favor.
+    pub fn vote_result(&self, check: impl Fn(u64) -> Option<bool>) -> VoteResult {
+        println!("incoming: {:?}, outgoing: {:?}", self.incoming, self.outgoing);
+
+        let i = self.incoming.vote_result(&check);
+        let o = self.outgoing.vote_result(&check);
+        match (i, o) {
+            // It won if won in both.
+            (VoteResult::Won, VoteResult::Won) => VoteResult::Won,
+            // It lost if lost in either.
+            (VoteResult::Lost, _) | (_, VoteResult::Lost) => VoteResult::Lost,
+            // It remains pending if pending in both or just won in one side.
+            _ => VoteResult::Pending,
+        }
+    }
+
 }
