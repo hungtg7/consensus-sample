@@ -8,9 +8,9 @@ use tokio::{sync::mpsc, time::timeout};
 
 mod config;
 mod node;
+mod quorum;
 mod raft;
 mod tracker;
-mod quorum;
 
 use quorum::majority::Configuration as MajorityConfig;
 
@@ -67,7 +67,7 @@ async fn main() {
             }
             Ok(Some(Msg::Raft(m))) => node.raft.step(m).unwrap(),
             Err(_) => (),
-            _ => ()
+            _ => (),
         }
         let d = t.elapsed();
         t = Instant::now();

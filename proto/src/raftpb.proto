@@ -36,3 +36,40 @@ message Message {
     uint64 reject_hint = 9;
     bytes context = 10;
 }
+
+
+message ConfState {
+    repeated uint64 voters = 1;
+    repeated uint64 learners = 2;
+
+    // The voters in the outgoing config (initial state). If not empty the node is in joint consensus.
+    repeated uint64 voters_outgoing = 3;
+    // The nodes that will become learners when the outgoing config is removed.
+    // These nodes are necessarily currently in nodes_joint (or they would have
+    // been added to the incoming config right away).
+    repeated uint64 learners_next = 4;
+    // If set, the config is joint and Raft will automatically transition into
+    // the final config (i.e. remove the outgoing config) when this is safe.
+    bool auto_leave = 5;
+}
+
+enum ConfChangeType {
+    AddNode    = 0;
+    RemoveNode = 1;
+    AddLearnerNode = 2;
+}
+
+message ConfChange {
+    ConfChangeType change_type = 2;
+    uint64 node_id = 3;
+    bytes context = 4;
+
+    uint64 id = 1;
+}
+
+// ConfChangeSingle is an individual configuration change operation. Multiple
+// such operations can be carried out atomically via a ConfChangeV2.
+message ConfChangeSingle {
+    ConfChangeType change_type = 1;
+    uint64 node_id = 2;
+}
