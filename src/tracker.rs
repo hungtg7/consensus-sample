@@ -34,6 +34,14 @@ impl Default for ProgressTracker {
 }
 
 impl ProgressTracker {
+    pub fn voter_ids(&self) -> HashSet<u64> {
+        self.conf.voters.ids()
+    }
+
+    pub fn apply_conf(&mut self, conf: Configuration, _changes: Vec<(u64, u64)>, _next_idx: u64) {
+        self.conf = conf;
+    }
+
     /// Records that the node with the given id voted for this Raft
     /// instance if v == true (and declined it otherwise).
     pub fn record_vote(&mut self, id: u64, vote: bool) {

@@ -3,7 +3,8 @@ use rand::{self, Rng};
 use slog::{debug, info, Logger};
 use std::ops::{Deref, DerefMut};
 
-use crate::{config::Config, tracker::ProgressTracker};
+use crate::{confchange, config::Config, tracker::ProgressTracker};
+use crate::storage::{RaftLog, Storage};
 use raftpb::proto::{Message, MessageType};
 
 /// A constant represents invalid id of raft.
@@ -38,13 +39,15 @@ fn new_message(to: u64, field_type: MessageType, from: Option<u64>) -> Message {
 }
 
 /// contain raft core component
-pub struct RaftCore {
+pub struct RaftCore<T: Storage> {
     pub id: u64,
     /// current election term
     pub term: u64,
 
     /// vote for node id
     pub vote: u64,
+
+    pub raft_log: RaftLog<T>,
 
     /// Curent raft state
     pub state: StateRole,
@@ -93,13 +96,13 @@ impl Default for StateRole {
     }
 }
 
-pub struct Raft {
+pub struct Raft<T: Storage> {
     prs: ProgressTracker,
-    pub r: RaftCore,
+    pub r: RaftCore<T>,
     pub msg: Vec<Message>,
 }
 
-impl RaftCore {
+impl<T: Storage> RaftCore<T> {
     fn send(&mut self, m: Message, msgs: &mut Vec<Message>) {
         debug!(
             self.logger,
@@ -113,8 +116,8 @@ impl RaftCore {
 }
 
 // allows you to use the dot operator (.) directly on your custom type to access the fields of the contained type.
-impl Deref for Raft {
-    type Target = RaftCore;
+impl<T: Storage> Deref for Raft<T> {
+    type Target = RaftCore<T>;
 
     fn deref(&self) -> &Self::Target {
         &self.r
@@ -122,16 +125,18 @@ impl Deref for Raft {
 }
 
 // DerefMut allow Raft to modify nested Deref RaftCore
-impl DerefMut for Raft {
+impl<T: Storage> DerefMut for Raft<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.r
     }
 }
 
-impl Raft {
+impl<T: Storage> Raft<T> {
     //pub fn new(log: Span) -> Result<Self> {
-    pub fn new(conf: &Config, logger: &Logger) -> Result<Self> {
+    pub fn new(conf: &Config, storage: T, logger: &Logger) -> Result<Self> {
         conf.validate()?;
+        let raft_state = storage.initial_state()?;
+        let conf_state = &raft_state.conf_state;
 
         let mut r = Raft {
             prs: Default::default(),
@@ -139,6 +144,7 @@ impl Raft {
                 id: conf.id,
                 term: Default::default(),
                 vote: Default::default(),
+                raft_log: RaftLog::new(storage),
                 state: StateRole::default(),
                 leader_id: Default::default(),
                 election_timeout: conf.election_tick,
@@ -152,12 +158,8 @@ impl Raft {
             },
             msg: Default::default(),
         };
+        confchange::restore::restore(&mut r.prs, r.r.raft_log.last_index(), conf_state)?;
         r.become_follower(r.term, INVALID_ID);
-        info!(
-            r.logger,
-            "newRaft";
-            "term" => r.term,
-        );
         info!(
             r.logger,
             "newRaft";
@@ -204,6 +206,18 @@ impl Raft {
     ///
     /// Panics if this is a follower node.
     pub fn become_leader(&mut self) {
+        if self.state == StateRole::Follower {
+            panic!("invalid transition [follower -> leader]");
+        }
+        let term = self.term;
+        self.reset_term(term);
+        self.leader_id = self.id;
+        self.state = StateRole::Leader;
+        info!(
+            self.logger,
+            "became leader at term {term}",
+            term = self.term;
+        );
     }
 
     pub fn become_candidate(&mut self) {
@@ -243,7 +257,7 @@ impl Raft {
                 // 2/ The node is still within the timeout period for hearing from the leader (self.election_elapsed < self.election_timeout).
                 let in_lease =
                     self.leader_id != INVALID_ID && self.election_elapsed < self.election_timeout;
-                if in_lease & force {
+                if in_lease && !force {
                     // if a server receives RequestVote request within the minimum election
                     // timeout of hearing from a current leader, it does not update its term
                     // or grant its vote
@@ -270,13 +284,6 @@ impl Raft {
             {
                 // For a pre-vote request:
                 // Never change our term in response to a pre-vote request.
-                //
-                // For a pre-vote response with pre-vote granted:
-                // We send pre-vote requests with a term in our future. If the
-                // pre-vote is granted, we will increment our term when we get a
-                // quorum. If it is not, the term comes from the node that
-                // rejected our vote so we should become a follower at the new
-                // term.
             } else {
                 info!(
                     self.logger,
@@ -294,8 +301,8 @@ impl Raft {
             }
         } else if msg.term < self.term {
             if self.check_quorum
-                && msg.msg_type() == MessageType::MsgHeartbeat
-                && msg.msg_type() == MessageType::MsgAppend
+                && (msg.msg_type() == MessageType::MsgHeartbeat
+                || msg.msg_type() == MessageType::MsgAppend)
             {
                 // Recevie msg from a leder with a lower term
                 // THere are two posiple cases
@@ -304,23 +311,19 @@ impl Raft {
                 // If check_quorum is True, this node must not increase the term, but sending to
                 // the old leader
                 let to_send = new_message(msg.from, MessageType::MsgAppendResponse, None);
-                // TODO:
-                // how the leader handle this
                 self.r.send(to_send, &mut self.msg);
+            } else {
+                // ignore other cases
+                info!(
+                    self.logger,
+                    "ignored a message with lower term from {from}",
+                    from = msg.from;
+                    "term" => self.term,
+                    "msg type" => ?msg.msg_type(),
+                    "msg term" => msg.term
+                );
+                return Ok(());
             }
-        }
-        // TODO: This case is not happend with one node example (else if m.get_msg_type() == MessageType::MsgRequestPreVote)
-        else {
-            // ignore other cases
-            info!(
-                self.logger,
-                "ignored a message with lower term from {from}",
-                from = msg.from;
-                "term" => self.term,
-                "msg type" => ?msg.msg_type(),
-                "msg term" => msg.term
-            );
-            return Ok(());
         }
 
         match msg.msg_type() {
@@ -354,16 +357,26 @@ impl Raft {
         }
     }
 
-    fn campaign(&mut self, campaign_type: &'static [u8]) {
-        // TODO: campaign to be a leader
+    fn campaign(&mut self, _campaign_type: &'static [u8]) {
         self.become_candidate();
-        let (vote_msg, term) = (MessageType::MsgRequestVote, self.term);
         let self_id = self.id;
-        // TODO: implement poll
+        let vote_msg = MessageType::MsgRequestVote;
+        
         if VoteResult::Won == self.poll(self_id, vote_msg, true) {
-            // We won the election after voting for ourselves (which must mean that
-            // this is a single-node cluster).
             return;
+        }
+
+        // Broadcast RequestVote to all peers
+        let ids: Vec<u64> = self.prs.voter_ids().into_iter().collect();
+        for id in ids {
+            if id == self_id {
+                continue;
+            }
+            let mut m = new_message(id, MessageType::MsgRequestVote, Some(self_id));
+            m.term = self.term;
+            m.index = self.raft_log.last_index();
+            m.log_term = self.raft_log.last_term();
+            self.r.send(m, &mut self.msg);
         }
     }
 
@@ -383,7 +396,6 @@ impl Raft {
             return false;
         }
 
-        println!("\nstep y'aaaaaa\n");
         let m = new_message(INVALID_ID, MessageType::MsgHup, Some(self.id));
         let _ = self.step(m);
         true
@@ -392,7 +404,7 @@ impl Raft {
     // tick_heartbeat is run by leaders to send a MsgBeat after self.heartbeat_timeout.
     // Returns true to indicate that there will probably be some readiness need to be handled.
     fn tick_heartbeat(&mut self) -> bool {
-        // TODO
+        // TODO: implement heartbeat
         true
     }
 
@@ -410,18 +422,24 @@ impl Raft {
         Ok(())
     }
 
-    fn poll(&mut self, from: u64, m_t: MessageType, vote: bool) -> VoteResult {
+    fn poll(&mut self, from: u64, _m_t: MessageType, vote: bool) -> VoteResult {
         self.prs.record_vote(from, vote);
         let (gr, rj, res) = self.prs.tally_votes();
-        println!("received votes response vote: {:?} from :{:?} rejections: {:?} approvals: {:?} term: {:?}", vote, from, rj, gr, self.term);
+        info!(
+            self.logger,
+            "received votes response";
+            "vote" => vote,
+            "from" => from,
+            "rejections" => rj,
+            "approvals" => gr,
+            "term" => self.term,
+            "result" => ?res,
+        );
 
         match res {
             VoteResult::Won => {
-                // TODO: implement conf change confchange::restore(&mut r.prs, r.r.raft_log.last_index(), conf_state)?;
-                // TODO: implement become leader
                 self.become_leader();
-                // TODO: send grpc to all peers
-                // self.bcast_append();
+                // TODO: bcast_append()
             }
             VoteResult::Lost => {
                 let term = self.term;

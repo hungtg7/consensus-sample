@@ -69,6 +69,15 @@ impl Configuration {
         self.incoming.voters.contains(&id) || self.outgoing.voters.contains(&id)
     }
 
+    /// Returns the combined set of IDs of all voters in the joint configuration.
+    pub fn ids(&self) -> HashSet<u64> {
+        let mut set = self.incoming.voters.clone();
+        for &id in &self.outgoing.voters {
+            set.insert(id);
+        }
+        set
+    }
+
     /// Takes a mapping of voters to yes/no (true/false) votes and returns a result
     /// indicating whether the vote is pending, lost, or won. A joint quorum requires
     /// both majority quorums to vote in favor.

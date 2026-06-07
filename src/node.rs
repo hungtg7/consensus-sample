@@ -1,18 +1,19 @@
 use crate::config::Config;
 use crate::raft::Raft;
+use crate::storage::Storage;
 use anyhow::Result;
 use slog::{info, Logger};
 
 /// Node server
-pub struct Node {
-    pub raft: Raft,
+pub struct Node<T: Storage> {
+    pub raft: Raft<T>,
 }
 
-impl Node {
+impl<T: Storage> Node<T> {
     #[allow(clippy::new_ret_no_self)]
     /// Create a new RawNode given some [`Config`].
-    pub fn new(config: &Config, logger: &Logger) -> Result<Self> {
-        let r = Raft::new(config, logger)?;
+    pub fn new(config: &Config, storage: T, logger: &Logger) -> Result<Self> {
+        let r = Raft::new(config, storage, logger)?;
         let rn = Node { raft: r };
         info!(
             rn.raft.logger,

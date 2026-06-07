@@ -1,4 +1,4 @@
-use raftpb::proto::Message;
+use raftpb::proto::{ConfState, Message};
 use slog::{info, o, Drain, Logger};
 use std::{
     collections::HashMap,
@@ -7,11 +7,16 @@ use std::{
 use tokio::{sync::mpsc, time::timeout};
 
 mod config;
+mod confchange;
 mod node;
 mod quorum;
 mod raft;
 mod tracker;
+mod storage;
+mod errors;
+mod util;
 
+use crate::storage::{MemStorage, Storage};
 use quorum::majority::Configuration as MajorityConfig;
 
 use node::Node;
@@ -36,6 +41,13 @@ async fn main() {
     let drain = slog_term::FullFormat::new(decorator).build().fuse();
     let drain = slog_async::Async::new(drain).build().fuse();
     let logger = slog::Logger::root(drain, o!());
+    // Create a storage for Raft, and here we just use a simple memory storage.
+    // You need to build your own persistent storage in your production.
+    // Please check the Storage trait in src/storage.rs to see how to implement one.
+    let mut conf_state = ConfState::default();
+    conf_state.voters = vec![1];
+    let storage = MemStorage::new_with_conf_state(conf_state);
+
 
     let conf = config::Config {
         id: 1,
@@ -45,7 +57,7 @@ async fn main() {
         max_election_tick: 30,
         check_quorum: false,
     };
-    let mut node = Node::new(&conf, &logger).unwrap();
+    let mut node = Node::new(&conf, storage, &logger).unwrap();
 
     let (sender, mut receiver) = mpsc::unbounded_channel();
 
