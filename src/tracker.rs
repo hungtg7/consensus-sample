@@ -42,6 +42,27 @@ impl ProgressTracker {
         self.conf = conf;
     }
 
+    pub fn quorum_recently_active(&self) -> bool {
+        self.conf.voters.vote_result(|id| {
+            if let Some(pr) = self.progress.get(&id) {
+                if pr.recent_active {
+                    return Some(true);
+                }
+            }
+            None
+        }) == VoteResult::Won
+    }
+
+    pub fn reset_recent_active(&mut self) {
+        for pr in self.progress.values_mut() {
+            pr.recent_active = false;
+        }
+    }
+
+    pub fn get_mut(&mut self, id: u64) -> Option<&mut Progress> {
+        self.progress.get_mut(&id)
+    }
+
     /// Records that the node with the given id voted for this Raft
     /// instance if v == true (and declined it otherwise).
     pub fn record_vote(&mut self, id: u64, vote: bool) {

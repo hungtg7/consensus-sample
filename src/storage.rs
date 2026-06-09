@@ -530,6 +530,17 @@ impl<T: Storage> RaftLog<T> {
         self.term(self.last_index()).unwrap_or(0)
     }
 
+    /// is_up_to_date determines if the given (lastIndex, term) is at least
+    /// as up-to-date as this log.
+    pub fn is_up_to_date(&self, last_index: u64, term: u64) -> bool {
+        let my_term = self.last_term();
+        if term != my_term {
+            term > my_term
+        } else {
+            last_index >= self.last_index()
+        }
+    }
+
     pub fn commit_to(&mut self, to_commit: u64) {
         if self.committed < to_commit {
             if self.last_index() < to_commit {
