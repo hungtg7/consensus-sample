@@ -167,6 +167,7 @@ impl<T: Storage> Raft<T> {
             self.vote = INVALID_ID;
         }
         self.leader_id = INVALID_ID;
+        self.prs.reset_votes();
         self.randomized_election_timeout()
     }
 
@@ -288,11 +289,11 @@ impl<T: Storage> Raft<T> {
                 if can_vote && self.raft_log.is_up_to_date(msg.index, msg.log_term) {
                     self.election_elapsed = 0;
                     self.vote = msg.from;
-                    let mut m = new_message(msg.from, MessageType::MsgRequestVoteResponse, None);
+                    let mut m = new_message(msg.from, MessageType::MsgRequestVoteResponse, Some(self.id));
                     m.term = self.term;
                     self.r.send(m, &mut self.msg);
                 } else {
-                    let mut m = new_message(msg.from, MessageType::MsgRequestVoteResponse, None);
+                    let mut m = new_message(msg.from, MessageType::MsgRequestVoteResponse, Some(self.id));
                     m.term = self.term;
                     m.reject = true;
                     self.r.send(m, &mut self.msg);
@@ -478,5 +479,152 @@ impl<T: Storage> Raft<T> {
             VoteResult::Pending => (),
         }
         res
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::storage::MemStorage;
+    use raftpb::proto::ConfState;
+    use slog::o;
+
+    fn new_test_logger() -> Logger {
+        slog::Logger::root(slog::Discard, o!())
+    }
+
+    fn new_test_config(id: u64, voters: Vec<u64>) -> (Config, MemStorage) {
+        let mut conf_state = ConfState::default();
+        conf_state.voters = voters;
+        let storage = MemStorage::new_with_conf_state(conf_state);
+        let conf = Config {
+            id,
+            heartbeat_tick: 1,
+            election_tick: 10,
+            min_election_tick: 10,
+            max_election_tick: 20,
+            check_quorum: true,
+        };
+        (conf, storage)
+    }
+
+    #[test]
+    fn test_become_leader() {
+        let (conf, storage) = new_test_config(1, vec![1]);
+        let logger = new_test_logger();
+        let mut r = Raft::new(&conf, storage, &logger).unwrap();
+
+        r.become_candidate();
+        r.become_leader();
+
+        assert_eq!(r.state, StateRole::Leader);
+        assert_eq!(r.term, 1);
+        assert_eq!(r.leader_id, 1);
+    }
+
+    #[test]
+    fn test_step_candidate_poll_won() {
+        let (conf, storage) = new_test_config(1, vec![1, 2, 3]);
+        let logger = new_test_logger();
+        let mut r = Raft::new(&conf, storage, &logger).unwrap();
+
+        r.step(new_message(1, MessageType::MsgHup, None)).unwrap();
+        assert_eq!(r.state, StateRole::Candidate);
+        assert_eq!(r.term, 1);
+
+        // Receive vote from 2
+        let mut m2 = new_message(1, MessageType::MsgRequestVoteResponse, Some(2));
+        m2.term = 1;
+        r.step(m2).unwrap();
+        assert_eq!(r.state, StateRole::Leader);
+        assert_eq!(r.term, 1);
+    }
+
+    #[test]
+    fn test_step_candidate_poll_lost() {
+        let (conf, storage) = new_test_config(1, vec![1, 2, 3]);
+        let logger = new_test_logger();
+        let mut r = Raft::new(&conf, storage, &logger).unwrap();
+
+        r.step(new_message(1, MessageType::MsgHup, None)).unwrap();
+        assert_eq!(r.state, StateRole::Candidate);
+
+        // Receive rejection from 2 and 3
+        let mut m2 = new_message(1, MessageType::MsgRequestVoteResponse, Some(2));
+        m2.term = 1;
+        m2.reject = true;
+        r.step(m2).unwrap();
+        assert_eq!(r.state, StateRole::Candidate);
+
+        let mut m3 = new_message(1, MessageType::MsgRequestVoteResponse, Some(3));
+        m3.term = 1;
+        m3.reject = true;
+        r.step(m3).unwrap();
+        assert_eq!(r.state, StateRole::Follower);
+        assert_eq!(r.term, 1);
+    }
+
+    #[test]
+    fn test_election_safety() {
+        // Node 1 has a stale log, Node 2 has a fresh log.
+        // Node 1 tries to campaign.
+        let (conf1, storage1) = new_test_config(1, vec![1, 2]);
+        let (conf2, storage2) = new_test_config(2, vec![1, 2]);
+        
+        // Add an entry to storage2
+        let mut ent = raftpb::proto::Entry::default();
+        ent.index = 1;
+        ent.term = 1;
+        storage2.wl().append(&[ent]).unwrap();
+
+        let logger = new_test_logger();
+        let mut r1 = Raft::new(&conf1, storage1, &logger).unwrap();
+        let mut r2 = Raft::new(&conf2, storage2, &logger).unwrap();
+
+        // Node 1 campaigns
+        r1.step(new_message(1, MessageType::MsgHup, None)).unwrap();
+        assert_eq!(r1.state, StateRole::Candidate);
+        assert_eq!(r1.term, 1);
+
+        // Node 1 sends RequestVote to Node 2
+        let m = r1.msg.pop().unwrap();
+        assert_eq!(m.msg_type(), MessageType::MsgRequestVote);
+        assert_eq!(m.from, 1);
+        assert_eq!(m.to, 2);
+
+        // Node 2 receives it and should reject because Node 1's log is stale
+        r2.step(m).unwrap();
+        let resp = r2.msg.pop().unwrap();
+        assert_eq!(resp.msg_type(), MessageType::MsgRequestVoteResponse);
+        assert!(resp.reject);
+
+        // Node 1 receives the rejection
+        r1.step(resp).unwrap();
+        assert_eq!(r1.state, StateRole::Follower); // Lost election in 2-node cluster
+    }
+
+    #[test]
+    fn test_quorum_check() {
+        let (mut conf, storage) = new_test_config(1, vec![1, 2, 3]);
+        conf.check_quorum = true;
+        let logger = new_test_logger();
+        let mut r = Raft::new(&conf, storage, &logger).unwrap();
+
+        r.become_candidate();
+        r.become_leader();
+        assert_eq!(r.state, StateRole::Leader);
+
+        // Mock peer activity
+        r.prs.get_mut(1).unwrap().recent_active = true;
+        r.prs.get_mut(2).unwrap().recent_active = false;
+        r.prs.get_mut(3).unwrap().recent_active = false;
+
+        // Trigger tick until election timeout
+        for _ in 0..r.r.election_timeout {
+            r.tick();
+        }
+
+        // It should step down because only 1/3 nodes are active
+        assert_eq!(r.state, StateRole::Follower);
     }
 }

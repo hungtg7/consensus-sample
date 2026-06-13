@@ -1,9 +1,10 @@
-mod progress;
-mod state;
+pub mod progress;
+pub mod state;
 
 use crate::{quorum::joint::Configuration as JointConfig, raft::VoteResult};
 use getset::Getters;
 use progress::Progress;
+use state::ProgressState;
 use std::collections::{HashMap, HashSet};
 
 pub type ProgressMap = HashMap<u64, Progress>;
@@ -40,6 +41,23 @@ impl ProgressTracker {
 
     pub fn apply_conf(&mut self, conf: Configuration, _changes: Vec<(u64, u64)>, _next_idx: u64) {
         self.conf = conf;
+        let ids = self.conf.voters.ids();
+        // Remove nodes that are no longer in the configuration
+        self.progress.retain(|id, _| ids.contains(id) || self.conf.learners.contains(id));
+        
+        // Add new nodes
+        for id in ids {
+            self.progress.entry(id).or_insert(Progress {
+                recent_active: true, // New nodes are considered active initially
+                state: ProgressState::Probe,
+            });
+        }
+        for id in &self.conf.learners {
+            self.progress.entry(*id).or_insert(Progress {
+                recent_active: true,
+                state: ProgressState::Probe,
+            });
+        }
     }
 
     pub fn quorum_recently_active(&self) -> bool {
@@ -63,10 +81,14 @@ impl ProgressTracker {
         self.progress.get_mut(&id)
     }
 
+    pub fn reset_votes(&mut self) {
+        self.votes.clear();
+    }
+
     /// Records that the node with the given id voted for this Raft
     /// instance if v == true (and declined it otherwise).
     pub fn record_vote(&mut self, id: u64, vote: bool) {
-        self.votes.entry(id).or_insert(vote);
+        self.votes.insert(id, vote);
     }
 
     /// TallyVotes returns the number of granted and rejected Votes, and whether the
